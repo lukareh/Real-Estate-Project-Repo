@@ -1,0 +1,59 @@
+# == Schema Information
+#
+# Table name: audiences
+#
+#  id              :integer          not null, primary key
+#  created_at      :datetime         not null
+#  created_by_id   :integer          not null
+#  deleted_at      :datetime
+#  description     :text
+#  filters         :jsonb            default("{}"), not null
+#  name            :string           not null
+#  organization_id :integer          not null
+#  updated_at      :datetime         not null
+#
+
+class Audience < ApplicationRecord
+  include Discard::Model
+  self.discard_column = :deleted_at
+
+  # Multi-tenancy
+  acts_as_tenant :organization
+
+  # Associations
+  belongs_to :created_by, class_name: 'User'
+
+  has_many :campaign_audiences, dependent: :delete_all
+  has_many :campaigns, through: :campaign_audiences
+  
+  has_many :audience_contacts, dependent: :delete_all
+  has_many :contacts, through: :audience_contacts
+
+  # Validations
+  validates :name,
+          presence: true,
+          length: { minimum: 3, maximum: 100 },
+          uniqueness: {
+            scope: [:organization_id, :deleted_at],
+            conditions: -> { where(deleted_at: nil) }
+          }
+  validates :description, length: { minimum: 10, maximum: 255 }, allow_blank: true
+  # validates :organization, presence: true
+  validates :created_by, presence: true
+
+  # Scopes
+  default_scope { kept }
+  scope :by_user, ->(user_id) { where(created_by_id: user_id) }
+  scope :search, ->(query) {
+    where("name ILIKE ? OR description ILIKE ?", "%#{query}%", "%#{query}%")
+  }
+  
+  # Helper methods
+  def contact_count
+    AudienceQueryService.new(self).count
+  end
+  
+  def contacts(page: 1, per_page: 20)
+    AudienceQueryService.new(self).contacts.page(page).per(per_page)
+  end
+end
