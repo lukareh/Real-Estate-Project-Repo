@@ -93,5 +93,7 @@ test:
 production:
   <<: *default
   url: <%= ENV['DATABASE_URL'] %>
+  # Force IPv4 to avoid IPv6 connectivity issues on Render
+  host_resolver: :ipv4
   # For Supabase, use connection pooler for better performance:
   # url: <%= ENV['DATABASE_URL']&.sub(':5432/', ':6543/') %>
